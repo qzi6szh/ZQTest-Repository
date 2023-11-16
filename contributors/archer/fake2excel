@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+
+#############################################
+# File Name: excel.py
+# Mail: 1957875073@qq.com
+# Created Time:  2022-4-25 10:17:34
+# Description: 有关 excel 的自动化操作
+#############################################
+
+from faker import Faker
+import pandas as pd
+from alive_progress import alive_bar
+
+import numpy as np
+
+
+def reduce_pandas_mem_usage(df):
+    # start_mem = df.memory_usage().sum() / 1024 ** 2
+    # print('Memory usage of dataframe is {:.2f} MB'.format(start_mem))
+
+    for col in df.columns:  # Iterate all the columns
+        col_type = df[col].dtype  # Get the dtype of the column
+
+        if col_type != object:  # If the column is not object
+            c_min = df[col].min()  # Get the minimum value
+            c_max = df[col].max()  # Get the maximum value
+            if str(col_type)[:3] == 'int':  # If the column is integer
+                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+                    # If the column is within 8-bit integer range
+                    df[col] = df[col].astype(np.int8)  # Convert to int8
+                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+                    df[col] = df[col].astype(np.int16)
+                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+                    df[col] = df[col].astype(np.int32)
+                elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
+                    df[col] = df[col].astype(np.int64)
+        else:
+            if 'date' in col:
+                pass
+            else:
+                df[col] = df[col].astype('category')
+
+    # end_mem = df.memory_usage().sum() / 1024 ** 2
+    # print('Memory usage after optimization is: {:.2f} MB'.format(end_mem))
+    # print('Decreased by {:.1f}%'.format(100 * (start_mem - end_mem) / start_mem))
+
+    return df
+
+
+def fake2excel(columns=None, rows=1, language='zh_CN', path='./fake2excel.xlsx'):
+    """
+    @Author & Date  : CoderWanFeng 2022/5/13 0:12
+    @Desc  : columns:list，每列的数据名称，默认是名称
+            rows：多少行，默认是1
+            language：什么语言，可以填english，默认是中文
+            path：输出excel的位置，有默认值
+    """
+    # 可以选择英语
+    if columns is None:
+        columns = ['name']
+    if language.lower() == 'english':
+        language = 'en_US'
+    # 开始造数
+    fake = Faker(language)
+    excel_dict = {}
+    with alive_bar(len(columns) * rows) as bar:
+        for column in columns:  # 循环每一列
+            excel_dict[column] = []  # 初始化每一列
+            while len(excel_dict[column]) < rows:  # 循环每一列的每一行
+                excel_dict[column].append(eval(f'fake.{column}()'))  # 往每一列的每一行里面添加数据
+                bar()  # 动态显示进度
+        # 用pandas，将模拟数据，写进excel里面
+        writer = pd.ExcelWriter(path)  # 创建一个ExcelWriter对象
+        data = pd.DataFrame(excel_dict)  # 将字典转换成DataFrame
+        data = reduce_pandas_mem_usage(data)  # 压缩数据
+        data.to_excel(writer, index=False)  # 将数据写入Excel
+        writer.save()
+
+
+def fake2excel_dateframe(columns, names, rows=1, language='zh_CN'):
+    # language = 'en_US'    # 可以选择英语
+    fake = Faker(language)
+    excel_dict = {}
+    # 改动部分
+    for column, name in zip(columns, names):
+        excel_dict[name] = []
+        while len(excel_dict[name]) < rows:  # 循环每一列的每一行
+            excel_dict[name].append(eval(f'fake.{column}'))  # 往每一列的每一行里面添加数据
+    data = pd.DataFrame(excel_dict)  # 将字典转换成DataFrame
+    return data
+
